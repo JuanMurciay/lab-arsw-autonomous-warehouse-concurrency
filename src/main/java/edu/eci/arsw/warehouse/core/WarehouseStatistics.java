@@ -1,28 +1,28 @@
 package edu.eci.arsw.warehouse.core;
 
-/**
- * Intentionally unsafe counters. ++ and += are not atomic read-modify-write operations.
- */
+/** Thread-safe aggregate of warehouse processing statistics. */
 public class WarehouseStatistics {
 
+    private final Object lock = new Object();
     private int processedParcels;
     private long totalProcessingMillis;
 
     public void recordProcessed(long elapsedMillis) {
-        int current = processedParcels;
-        Thread.yield();
-        processedParcels = current + 1;
-
-        long accumulated = totalProcessingMillis;
-        Thread.yield();
-        totalProcessingMillis = accumulated + elapsedMillis;
+        synchronized (lock) {
+            processedParcels++;
+            totalProcessingMillis += elapsedMillis;
+        }
     }
 
     public int processedParcels() {
-        return processedParcels;
+        synchronized (lock) {
+            return processedParcels;
+        }
     }
 
     public long totalProcessingMillis() {
-        return totalProcessingMillis;
+        synchronized (lock) {
+            return totalProcessingMillis;
+        }
     }
 }
