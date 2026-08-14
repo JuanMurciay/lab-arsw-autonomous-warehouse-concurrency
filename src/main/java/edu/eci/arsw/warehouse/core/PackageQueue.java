@@ -6,10 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Intentionally unsafe starter implementation.
- *
- * Students: do not simply synchronize every public method without analysis.
- * First identify the invariant and the minimum critical region.
+ * Thread-safe pending-parcel queue with an atomic take operation.
  */
 public class PackageQueue {
 
@@ -20,20 +17,18 @@ public class PackageQueue {
     }
 
     public Parcel takeNext() {
-        // Deliberate check-then-act race condition.
-        if (pending.isEmpty()) {
-            return null;
+        synchronized (pending) {
+            if (pending.isEmpty()) {
+                return null;
+            }
+
+            return pending.remove(0);
         }
-
-        Parcel selected = pending.get(0);
-        Thread.yield();
-
-        // Another thread may have changed the list between get(0) and remove(0).
-        pending.remove(0);
-        return selected;
     }
 
     public int pendingCount() {
-        return pending.size();
+        synchronized (pending) {
+            return pending.size();
+        }
     }
 }
