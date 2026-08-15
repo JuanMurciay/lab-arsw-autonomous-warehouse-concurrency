@@ -35,26 +35,30 @@ public class WarehouseRobot extends Thread {
 
     @Override
     public void run() {
-        while (true) {
-            control.awaitIfPaused();
+        try {
+            while (true) {
+                control.awaitIfPaused();
 
-            Parcel parcel;
-            try {
-                parcel = packageQueue.takeNext();
-            } catch (RuntimeException ex) {
-                System.err.printf("[%s] Queue anomaly: %s%n", getName(), ex.getClass().getSimpleName());
-                continue;
+                Parcel parcel;
+                try {
+                    parcel = packageQueue.takeNext();
+                } catch (RuntimeException ex) {
+                    System.err.printf("[%s] Queue anomaly: %s%n", getName(), ex.getClass().getSimpleName());
+                    continue;
+                }
+
+                if (parcel == null) {
+                    return;
+                }
+
+                long processingMillis = process(parcel);
+
+                long elapsedMillis = (System.nanoTime() - simulationStartNanos) / 1_000_000L;
+                deliveryRegistry.register(robotId, parcel.id(), elapsedMillis);
+                statistics.recordProcessed(processingMillis);
             }
-
-            if (parcel == null) {
-                return;
-            }
-
-            long processingMillis = process(parcel);
-
-            long elapsedMillis = (System.nanoTime() - simulationStartNanos) / 1_000_000L;
-            deliveryRegistry.register(robotId, parcel.id(), elapsedMillis);
-            statistics.recordProcessed(processingMillis);
+        } finally {
+            control.workerFinished();
         }
     }
 

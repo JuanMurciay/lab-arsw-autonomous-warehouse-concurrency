@@ -425,6 +425,20 @@ docs/REPORT.md
 7. verification results;
 8. quality-attribute analysis.
 
+## Implemented solution
+
+This repository version includes the completed Laboratory 2 solution:
+
+- atomic parcel extraction, delivery-position assignment and statistics updates;
+- explicit worker completion with `join()` and one final report;
+- monitor-based pause/resume with `wait()` and `notifyAll()`;
+- a pause barrier that produces a stable snapshot at a safe point;
+- repeated concurrency and pause/resume tests;
+- a completed report and ADR under `docs/`.
+
+The work is divided among three team roles in `docs/REPORT.md`. Replace the
+`[Name]` placeholders there with the actual team members before submission.
+
 ---
 
 # Constraints
