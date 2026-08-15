@@ -29,7 +29,7 @@ public final class WarehouseSimulation {
         this.packageQueue = new PackageQueue(WarehouseFactory.parcels(parcelCount));
         this.registry = new DeliveryRegistry();
         this.statistics = new WarehouseStatistics();
-        this.control = new SimulationControl();
+        this.control = new SimulationControl(robotCount);
     }
 
     public void start() {
