@@ -6,7 +6,7 @@
 |---|---|---|
 | Integrante 1 — **[Nombre]** | Diagnóstico, inventario de estado compartido, anomalías, interleaving e invariantes | Secciones 1–4; probes sobre el commit base `c449528` |
 | Integrante 2 — **[Nombre]** | Regiones críticas, sincronización de cola/registro/estadísticas y terminación con `join()` | Cambios en `PackageQueue`, `DeliveryRegistry`, `WarehouseStatistics` y revisión de `WarehouseSimulation` |
-| Integrante 3 — **[Nombre]** | Pausa/reanudación, pruebas, verificación, análisis arquitectónico y ADR | `SimulationControl`, `WarehouseRobot`, `WarehouseMain`, pruebas, secciones 6–8 y ADR-001 |
+| Integrante 3 — **Jhonatan Madero** | Pausa/reanudación, pruebas, verificación, análisis arquitectónico y ADR | `SimulationControl`, `WarehouseRobot`, `WarehouseMain`, pruebas, secciones 6–8 y ADR-001 |
 
 La integración y revisión final se realizó en equipo. Antes de entregar se deben reemplazar los tres marcadores **[Nombre]**.
 
