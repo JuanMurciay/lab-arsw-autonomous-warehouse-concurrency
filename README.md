@@ -1,74 +1,95 @@
-# ARSW — Laboratory 2
-## Autonomous Warehouse: Race Conditions, Critical Sections and Thread Coordination
+# ARSW - Laboratorio 2
 
-**Course:** Software Architectures — ARSW  
-**Technology:** Java 21 · Maven · JUnit 5  
-**Work mode:** teams of project 
-**Development time:** one week  
-**Suggested deadline:** Friday, August 14, 2026  
+## Almacen autonomo: condiciones de carrera, regiones criticas y coordinacion de hilos
 
----
+**Asignatura:** Arquitecturas de Software - ARSW
 
-## 1. Purpose
+**Tecnologia:** Java 21, Maven y JUnit 5
 
-In Laboratory 1 you explored **how concurrency can improve execution time** by comparing sequential execution, fixed thread pools and Java 21 virtual threads.
+**Modalidad:** equipo de proyecto de tres integrantes
 
-Laboratory 2 asks a different question:
-
-> **What can go wrong when multiple threads modify shared mutable state, and how should we design a correct solution without synchronizing more than necessary?**
-
-The laboratory connects implementation decisions with architectural reasoning. Your solution must preserve system invariants, eliminate race conditions, coordinate worker threads correctly, and explain the quality-attribute trade-offs created by your synchronization strategy.
+**Estado:** solucion final implementada y verificada
 
 ---
 
-## 2. Scenario
+## Descripcion
 
-A distribution center uses autonomous robots to process parcels.
+Este proyecto simula un centro de distribucion en el que varios robots autonomos, representados mediante hilos de plataforma `Thread`, procesan paquetes concurrentemente.
 
-Each robot is modeled as an independent Java thread. Robots repeatedly:
+Cada robot solicita un paquete, lo procesa, registra su posicion de entrega, actualiza las estadisticas y repite el ciclo hasta que no queden paquetes. Los robots comparten `PackageQueue`, `DeliveryRegistry`, `WarehouseStatistics` y `SimulationControl`.
 
-1. request the next pending parcel;
-2. process it;
-3. register its delivery position;
-4. update warehouse statistics;
-5. continue until no parcels remain.
-
-All robots share the following objects:
-
-- `PackageQueue`
-- `DeliveryRegistry`
-- `WarehouseStatistics`
-- `SimulationControl`
-
-The starter project is **intentionally incorrect**. Several operations contain race conditions, inconsistent snapshots, and inefficient thread coordination.
-
-Your task is not to remove concurrency. Your task is to make it **correct**.
+La version inicial contenia condiciones de carrera, actualizaciones perdidas, posiciones duplicadas, reportes prematuros y espera activa. La solucion conserva la concurrencia y protege unicamente las regiones criticas necesarias.
 
 ---
 
-## 3. Learning outcomes
+## Distribucion del equipo
 
-By the end of the laboratory you should be able to:
+| Integrante | Responsabilidad principal |
+|---|---|
+| Juan sebastian murcia | Diagnostico, inventario de estado compartido, interleaving, invariantes y correccion de `PackageQueue`. |
+| Jhonatan peña mora | Sincronizacion de `DeliveryRegistry` y `WarehouseStatistics`, y finalizacion correcta mediante `join()`. |
+| Jhonatan madero | Pausa/reanudacion con monitores, pruebas concurrentes, verificacion, analisis arquitectonico y ADR. |
 
-- identify shared mutable state;
-- explain a race condition using an interleaving;
-- define invariants that must hold under concurrent execution;
-- delimit the minimum critical region;
-- use Java monitor primitives correctly;
-- coordinate thread termination with `join()`;
-- replace busy waiting with `wait()` / `notifyAll()`;
-- distinguish thread safety from merely obtaining a correct result "most of the time";
-- reason about correctness, performance and maintainability trade-offs.
+La integracion y revision final se realizaron en equipo.
 
 ---
 
-## 4. Requirements
+## Problemas identificados
 
-- JDK 21
-- Maven 3.9+
-- Git
+La version inicial permitia que:
 
-Verify:
+- dos robots seleccionaran el mismo paquete;
+- un paquete desapareciera sin ser procesado;
+- `ArrayList` produjera `IndexOutOfBoundsException` por modificaciones concurrentes;
+- varias entregas recibieran la misma posicion;
+- se perdieran incrementos de estadisticas;
+- el reporte final se imprimiera antes de terminar los robots;
+- los robots pausados consumieran CPU mediante espera activa;
+- una instantanea pausada observara un estado intermedio.
+
+La evidencia, los comandos y el interleaving completo se encuentran en [`docs/REPORT.md`](docs/REPORT.md).
+
+---
+
+## Solucion implementada
+
+| Componente | Problema corregido | Mecanismo |
+|---|---|---|
+| `PackageQueue` | Carrera entre comprobar y eliminar un paquete. | `synchronized (pending)` para una extraccion atomica. |
+| `DeliveryRegistry` | Posiciones duplicadas y escritura concurrente. | Reserva de posicion e insercion bajo el mismo monitor. |
+| `WarehouseStatistics` | Incrementos y acumulaciones perdidas. | Monitor privado para actualizar contador y tiempo. |
+| `WarehouseMain` | Reporte final prematuro. | `awaitCompletion()` y `join()` antes del reporte. |
+| `SimulationControl` | Espera activa y pausa inconsistente. | `synchronized`, `wait()` y `notifyAll()`. |
+| `WarehouseRobot` | Barrera esperando robots terminados. | `workerFinished()` ejecutado dentro de `finally`. |
+
+No se utilizo un bloqueo global. Cada objeto protege su propio estado mutable y el procesamiento del paquete ocurre fuera de las regiones criticas.
+
+---
+
+## Invariantes principales
+
+1. Cada paquete se extrae y procesa como maximo una vez.
+2. Ningun paquete desaparece del sistema.
+3. Los paquetes y las posiciones registrados son unicos.
+4. Las posiciones forman la secuencia `1..N`.
+5. Cada entrega actualiza las estadisticas exactamente una vez.
+6. En una pausa confirmada ningun robot modifica el estado observado.
+7. Al finalizar:
+
+```text
+deliveries == processedParcels == initialParcels
+pendingParcels == 0
+```
+
+La justificacion completa esta en [`docs/REPORT.md`](docs/REPORT.md).
+
+---
+
+## Requisitos
+
+- JDK 21;
+- Maven 3.9 o superior;
+- Git.
 
 ```bash
 java -version
@@ -77,334 +98,145 @@ mvn -version
 
 ---
 
-## 5. Build and run
-
-Compile and run the unit tests:
+## Compilacion y pruebas
 
 ```bash
 mvn clean test
 ```
 
-Run the starter simulation:
+Las pruebas verifican instantaneas consistentes, posiciones unicas, diez simulaciones concurrentes con 32 robots y 500 paquetes, estabilidad durante la pausa y finalizacion posterior sin violar invariantes.
+
+---
+
+## Ejecucion
+
+### Simulacion principal
 
 ```bash
 java -cp target/classes edu.eci.arsw.warehouse.app.WarehouseMain
 ```
 
-You may change the number of robots and parcels:
+Configuracion personalizada:
 
 ```bash
 java -cp target/classes edu.eci.arsw.warehouse.app.WarehouseMain 24 250
 ```
 
-Run the race-condition probe:
+El programa espera a todos los robots y presenta exactamente un reporte final.
+
+### Sonda de condiciones de carrera
 
 ```bash
-java -cp target/classes edu.eci.arsw.warehouse.verification.RaceConditionProbe
-```
-
-A stronger probe:
-
-```bash
-java -cp target/classes edu.eci.arsw.warehouse.verification.RaceConditionProbe 50 32 500
-```
-
-Run the pause/resume demonstration:
-
-```bash
-java -cp target/classes edu.eci.arsw.warehouse.app.PauseResumeDemo
-```
-
-> The starter is expected to produce anomalies. Do not treat a single successful execution as evidence of correctness.
-
----
-
-# Part I — Diagnose before changing code
-
-Do **not** modify the synchronization mechanisms yet.
-
-Run the application and the probe several times.
-
-## 1. Shared state inventory
-
-Complete the following table in your report:
-
-| Shared object | Mutable state | Readers | Writers | Possible invariant |
-|---|---|---|---|---|
-| `PackageQueue` |  |  |  |  |
-| `DeliveryRegistry` |  |  |  |  |
-| `WarehouseStatistics` |  |  |  |  |
-| `SimulationControl` |  |  |  |  |
-
-## 2. Evidence of incorrect behavior
-
-Record at least **three different anomalies** observed during execution.
-
-For each anomaly include:
-
-- command used;
-- execution number;
-- relevant console output;
-- class/method suspected;
-- explanation.
-
-### Evidence 1
-
-```text
-<your evidence>
-```
-
-### Evidence 2
-
-```text
-<your evidence>
-```
-
-### Evidence 3
-
-```text
-<your evidence>
-```
-
-## 3. Interleaving analysis
-
-Choose one race condition and describe a possible interleaving.
-
-Example format:
-
-| Step | Thread A | Thread B | Shared state |
-|---:|---|---|---|
-| 1 |  |  |  |
-| 2 |  |  |  |
-| 3 |  |  |  |
-| 4 |  |  |  |
-
-Answer:
-
-**Why is the final result dependent on scheduling?**
-
-> _Write your answer here._
-
----
-
-# Part II — Define the invariants
-
-Before implementing synchronization, define what must always remain true.
-
-At minimum evaluate these candidate invariants:
-
-1. Every parcel is processed at most once.
-2. No parcel disappears from the system.
-3. Arrival positions are unique.
-4. Arrival positions form a valid sequence from `1..N`.
-5. The processed counter matches the number of delivery records.
-6. When the simulation is reported as complete, no parcels remain pending.
-
-For each invariant state whether it is:
-
-- required;
-- derived;
-- unnecessary;
-- or incomplete.
-
-Then write your final set of invariants.
-
-```text
-I1:
-I2:
-I3:
-...
-```
-
----
-
-# Part III — Protect only the critical regions
-
-Correct the concurrency defects in:
-
-- `PackageQueue`
-- `DeliveryRegistry`
-- `WarehouseStatistics`
-
-You may use Java's monitor primitives (`synchronized`) and other Java SE synchronization utilities **only when you can justify them**.
-
-## Restriction
-
-Do not solve the exercise by blindly declaring every public method `synchronized`.
-
-For each change document:
-
-| Class | Critical region | Protected invariant | Synchronization mechanism | Why this granularity? |
-|---|---|---|---|---|
-|  |  |  |  |  |
-
-Answer:
-
-> What would happen to throughput if the protected region were unnecessarily large?
-
-> _Write your answer here._
-
----
-
-# Part IV — Correct thread completion
-
-The starter prints a report before the worker threads have completed.
-
-Modify the application so that:
-
-1. all robots start concurrently;
-2. the coordinating thread waits for all robot threads;
-3. exactly one final report is printed;
-4. the final report is consistent with the invariants.
-
-Use Java's thread coordination mechanisms appropriately.
-
-Document:
-
-> Why is `Thread.sleep(...)` not a valid substitute for `join()` when waiting for a worker to finish?
-
-> _Write your answer here._
-
----
-
-# Part V — Implement PAUSE / RESUME correctly
-
-The starter's `SimulationControl` uses active waiting:
-
-```java
-while (paused) {
-    Thread.onSpinWait();
-}
-```
-
-Replace this design with a **common monitor** using:
-
-- `synchronized`
-- `wait()`
-- `notifyAll()`
-
-Required behavior:
-
-- `pause()` requests all robots to stop at a safe point;
-- paused workers must not consume CPU in a busy loop;
-- `resume()` wakes all waiting robots with a single coordination action;
-- the simulation can continue and finish normally.
-
-## Consistent paused snapshot
-
-When the system is paused, report:
-
-```text
-Processed parcels
-Pending parcels
-Registry size
-Current leader
-```
-
-Explain:
-
-> How do you know the snapshot represents a consistent state rather than workers that are still changing shared data?
-
-> _Write your answer here._
-
----
-
-# Part VI — Verification
-
-After your changes run:
-
-```bash
-mvn clean test
 java -cp target/classes edu.eci.arsw.warehouse.verification.RaceConditionProbe 100 32 500
 ```
 
-Expected target:
+Resultado esperado:
 
 ```text
 Anomalous runs: 0/100
 ```
 
-A correct result once is not sufficient.
+### Pausa y reanudacion
 
-Run at least three configurations:
+```bash
+java -cp target/classes edu.eci.arsw.warehouse.app.PauseResumeDemo
+```
 
-| Robots | Parcels | Runs | Anomalies before | Anomalies after |
-|---:|---:|---:|---:|---:|
-| 8 | 100 |  |  |  |
-| 16 | 250 |  |  |  |
-| 32 | 500 |  |  |  |
+`pause()` retorna cuando todos los robots activos llegaron a un punto seguro. Los trabajadores bloqueados ejecutan `wait()`, sin consumir CPU mediante espera activa. `resume()` utiliza `notifyAll()` para despertarlos.
 
 ---
 
-# Part VII — Architectural analysis
+## Resultados
 
-This laboratory is about more than Java syntax.
+| Robots | Paquetes | Runs antes | Anomalias antes | Runs despues | Anomalias despues |
+|---:|---:|---:|---:|---:|---:|
+| 8 | 100 | 10 | 10 | 30 | 0 |
+| 16 | 250 | 10 | 10 | 30 | 0 |
+| 32 | 500 | 10 | 10 | 100 | 0 |
 
-## 1. Decision analysis
-
-For your main synchronization decision answer:
-
-- What problem were you solving?
-- What invariant had to be preserved?
-- What alternatives did you consider?
-- Why did you choose the final mechanism?
-- What are its consequences?
-
-## 2. Quality attributes
-
-Discuss the impact of your solution on at least:
-
-- **Correctness / reliability**
-- **Performance / throughput**
-- **Maintainability**
-
-## 3. Architectural boundary question
-
-Assume tomorrow the warehouse is deployed as **three independent JVM instances** behind a load balancer.
-
-Answer:
-
-> Would your `synchronized` blocks still protect the business invariant across all three instances? Why or why not?
-
-> What type of architectural mechanism would then be required?
-
-Do not implement a distributed solution. Analyze it.
-
----
-
-# Part VIII — Mini ADR
-
-Create:
+Verificacion final:
 
 ```text
-docs/ADR-001-concurrency-control.md
+pending=0
+processedCounter=500
+registry=500
+uniqueParcels=500
+uniquePositions=500
+positionsContiguous=true
+Anomalous runs: 0/100
 ```
 
-Use this structure:
+Ejemplo de pausa:
 
-```markdown
-# ADR-001: Concurrency control for warehouse shared state
+```text
+--- PAUSED SNAPSHOT ---
+Initial parcels : 180
+Pending parcels : 56
+Processed count : 124
+Registry size   : 124
+Simulation paused = true
 
-## Context
-
-## Decision
-
-## Alternatives considered
-
-## Quality attributes affected
-
-## Evidence
-
-## Consequences
-
-## Risks
+--- FINAL SNAPSHOT ---
+Initial parcels : 180
+Pending parcels : 0
+Processed count : 180
+Registry size   : 180
 ```
 
 ---
 
-# Deliverables
+## Estructura
 
-Submit the repository containing:
+```text
+.
+|-- README.md
+|-- pom.xml
+|-- src/
+|   |-- main/java/edu/eci/arsw/warehouse/
+|   |   |-- app/
+|   |   |-- core/
+|   |   |-- model/
+|   |   |-- verification/
+|   |   `-- worker/
+|   `-- test/java/edu/eci/arsw/warehouse/
+`-- docs/
+    |-- ADR-001-concurrency-control.md
+    `-- REPORT.md
+```
+
+### Documentacion
+
+- [Informe completo](docs/REPORT.md)
+- [ADR-001: control de concurrencia](docs/ADR-001-concurrency-control.md)
+
+---
+
+## Decisiones arquitectonicas
+
+La solucion utiliza monitores independientes y regiones criticas pequenas. Esto define puntos de linealizacion claros, conserva el paralelismo del procesamiento, evita contencion entre componentes independientes y relaciona cada bloqueo con el invariante protegido.
+
+Una region critica innecesariamente grande reduciria el throughput al serializar trabajo que puede ejecutarse en paralelo.
+
+### Limite entre JVM
+
+`synchronized` solo coordina hilos de una misma JVM. En un despliegue con varias instancias se requeririan transacciones con restricciones unicas, una cola distribuida con confirmacion, operaciones idempotentes y algun mecanismo de coordinacion distribuida.
+
+---
+
+## Restricciones respetadas
+
+- Java 21 y hilos de plataforma `Thread`;
+- sin pools de hilos ni hilos virtuales;
+- sin eliminar la concurrencia;
+- sin ejecucion secuencial como solucion;
+- sin un unico bloqueo global;
+- sin espera activa;
+- finalizacion mediante `join()`;
+- pausa/reanudacion mediante `wait()` y `notifyAll()`.
+
+---
+
+## Entregables
 
 ```text
 README.md
@@ -413,81 +245,3 @@ src/
 docs/ADR-001-concurrency-control.md
 docs/REPORT.md
 ```
-
-`docs/REPORT.md` must include:
-
-1. shared-state inventory;
-2. observed anomalies;
-3. one complete interleaving;
-4. invariants;
-5. critical-region justification;
-6. pause/resume explanation;
-7. verification results;
-8. quality-attribute analysis.
-
-## Implemented solution
-
-This repository version includes the completed Laboratory 2 solution:
-
-- atomic parcel extraction, delivery-position assignment and statistics updates;
-- explicit worker completion with `join()` and one final report;
-- monitor-based pause/resume with `wait()` and `notifyAll()`;
-- a pause barrier that produces a stable snapshot at a safe point;
-- repeated concurrency and pause/resume tests;
-- a completed report and ADR under `docs/`.
-
-The work is divided among three team roles in `docs/REPORT.md`. Replace the
-`[Name]` placeholders there with the actual team members before submission.
-
----
-
-# Constraints
-
-- Java 21 only.
-- Keep the worker model based on platform threads (`Thread`); **do not use thread pools or virtual threads in this laboratory**. Those were already studied in Laboratory 1.
-- Do not remove concurrency.
-- Do not replace the entire exercise with sequential execution.
-- Do not solve every problem with one global lock.
-- Avoid active waiting.
-- Preserve the public behavior of the simulation.
-- All code must compile with `mvn clean test`.
-- The final race probe must demonstrate repeatable correctness.
-
----
-
-# Evaluation criteria
-
-| Criterion | Weight |
-|---|---:|
-| Identification and explanation of race conditions | 20% |
-| Correct protection of critical regions | 25% |
-| Thread completion + pause/resume coordination | 20% |
-| Verification and reproducible evidence | 15% |
-| Architectural reasoning and quality attributes | 15% |
-| Code quality, Git history and documentation | 5% |
-| **Total** | **100%** |
-
-## Important
-
-A solution that only "seems to work" but cannot explain its invariants and critical regions is incomplete.
-
-A solution that uses excessive synchronization may be functionally correct but will lose points in **design** and **architectural reasoning**.
-
----
-
-# Optional challenge
-
-After completing the required solution, propose an alternative design using one of the following:
-
-- `BlockingQueue`
-- explicit `Lock` / `Condition`
-- immutable messages / ownership transfer
-
-Do not replace the required monitor exercise with the optional challenge.
-
-Compare both designs in terms of:
-
-- correctness;
-- contention;
-- readability;
-- extensibility.
