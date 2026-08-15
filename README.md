@@ -26,9 +26,9 @@ La version inicial contenia condiciones de carrera, actualizaciones perdidas, po
 
 | Integrante | Responsabilidad principal |
 |---|---|
-| Juan sebastian murcia | Diagnostico, inventario de estado compartido, interleaving, invariantes y correccion de `PackageQueue`. |
-| Jhonatan peña mora | Sincronizacion de `DeliveryRegistry` y `WarehouseStatistics`, y finalizacion correcta mediante `join()`. |
-| Jhonatan madero | Pausa/reanudacion con monitores, pruebas concurrentes, verificacion, analisis arquitectonico y ADR. |
+| Juan Sebastian Murcia Yanquen | Diagnostico, inventario de estado compartido, interleaving, invariantes y correccion de `PackageQueue`. |
+| Jhonatan stiven peña mora | Sincronizacion de `DeliveryRegistry` y `WarehouseStatistics`, y finalizacion correcta mediante `join()`. |
+| Jhonatan Madero | Pausa/reanudacion con monitores, pruebas concurrentes, verificacion, analisis arquitectonico y ADR. |
 
 La integracion y revision final se realizaron en equipo.
 
@@ -245,3 +245,4 @@ src/
 docs/ADR-001-concurrency-control.md
 docs/REPORT.md
 ```
+
